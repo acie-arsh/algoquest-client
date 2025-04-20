@@ -19,11 +19,7 @@ interface ShopItem {
   nameColor?: string;
 }
 
-type Props = {
-  data: any;
-};
-
-const Page = ({ data }: Props) => {
+const Page = () => {
   const searchParams = useSearchParams();
   const search = searchParams?.get("title") || "";
   const [route, setRoute] = useState("Login");

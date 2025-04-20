@@ -111,7 +111,7 @@ const CoursePlayer: FC<Props> = ({ videoUrl }) => {
       <video
         ref={videoRef}
         controls
-        src={videoUrl}
+        src={"/videos/video.mp4"}
         style={{
           position: "absolute",
           top: 0,

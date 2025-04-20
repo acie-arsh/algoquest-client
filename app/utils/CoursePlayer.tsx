@@ -1,3 +1,4 @@
+'use client'
 import React, { FC, useEffect, useRef, useState } from "react";
 import * as faceapi from "@vladmandic/face-api";
 import { useLoadUserQuery } from "@/redux/features/api/apiSlice";

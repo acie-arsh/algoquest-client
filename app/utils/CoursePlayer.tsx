@@ -1,6 +1,5 @@
 'use client'
 import React, { FC, useEffect, useRef, useState } from "react";
-import * as faceapi from "@vladmandic/face-api";
 import { useLoadUserQuery } from "@/redux/features/api/apiSlice";
 import { useUpdateWatchTimeMutation } from "@/redux/features/user/userApi";
 
@@ -17,83 +16,82 @@ const CoursePlayer: FC<Props> = ({ videoUrl }) => {
   const { data: userData } = useLoadUserQuery(undefined, {});
   const [updateWatchTime] = useUpdateWatchTimeMutation();
 
-  // Timers
   let faceNotDetectedStart = useRef<number | null>(null);
   let faceDetectedStart = useRef<number | null>(null);
-
-  // Session watch time
   const sessionWatchTimeRef = useRef(0);
 
-  // Load face-api models + start detection
+  // Load face-api dynamically
   useEffect(() => {
+    let faceapi: any;
+
     const loadModels = async () => {
+      faceapi = await import('@vladmandic/face-api');
       const MODEL_URL = "/models";
+
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
       await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
     };
 
     const startCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (webcamRef.current) {
           webcamRef.current.srcObject = stream;
         }
       } catch (err) {
         console.error("Camera access denied", err);
-        setShowOverlay(true); // Treat as no face
+        setShowOverlay(true);
       }
     };
 
-    loadModels().then(startCamera);
-  }, []);
+    const detectLoop = async () => {
+      await loadModels();
+      await startCamera();
 
-  // Start face detection loop
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      if (!webcamRef.current) return;
+      const interval = setInterval(async () => {
+        if (!webcamRef.current) return;
 
-      const detections = await faceapi.detectAllFaces(
-        webcamRef.current,
-        new faceapi.TinyFaceDetectorOptions()
-      );
+        const detections = await faceapi.detectAllFaces(
+          webcamRef.current,
+          new faceapi.TinyFaceDetectorOptions()
+        );
 
-      const hasFace = detections.length > 0;
-      const now = Date.now();
+        const hasFace = detections.length > 0;
+        const now = Date.now();
 
-      if (!hasFace) {
-        faceDetectedStart.current = null;
-        if (!faceNotDetectedStart.current) faceNotDetectedStart.current = now;
+        if (!hasFace) {
+          faceDetectedStart.current = null;
+          if (!faceNotDetectedStart.current) faceNotDetectedStart.current = now;
 
-        const timeWithoutFace = now - (faceNotDetectedStart.current || now);
-        if (timeWithoutFace > 1000) {
-          setShowOverlay(true);
-          pauseVideo();
+          const timeWithoutFace = now - (faceNotDetectedStart.current || now);
+          if (timeWithoutFace > 1000) {
+            setShowOverlay(true);
+            pauseVideo();
+          }
+        } else {
+          faceNotDetectedStart.current = null;
+          if (!faceDetectedStart.current) faceDetectedStart.current = now;
+
+          const timeWithFace = now - (faceDetectedStart.current || now);
+          if (timeWithFace > 1000) {
+            setShowOverlay(false);
+          }
         }
-      } else {
-        faceNotDetectedStart.current = null;
-        if (!faceDetectedStart.current) faceDetectedStart.current = now;
+      }, 2000);
 
-        const timeWithFace = now - (faceDetectedStart.current || now);
-        if (timeWithFace > 1000) {
-          setShowOverlay(false);
-        }
-      }
-    }, 2000);
+      return () => clearInterval(interval);
+    };
 
-    return () => clearInterval(interval);
+    detectLoop();
   }, []);
 
   const pauseVideo = () => {
     const video = videoRef.current;
     if (!video) return;
-
     video.pause();
     console.log("⏸️ Video paused");
   };
 
-  // Track local session watch time every 10s
   useEffect(() => {
     const interval = setInterval(() => {
       const video = videoRef.current;
@@ -102,11 +100,9 @@ const CoursePlayer: FC<Props> = ({ videoUrl }) => {
         console.log("⏱️ Local session watchTime:", sessionWatchTimeRef.current);
       }
     }, 10000);
-
     return () => clearInterval(interval);
   }, []);
 
-  // Sync local watch time to backend every 30s
   useEffect(() => {
     const interval = setInterval(() => {
       if (sessionWatchTimeRef.current > 0) {
@@ -114,13 +110,11 @@ const CoursePlayer: FC<Props> = ({ videoUrl }) => {
         console.log("📤 Synced total session watchTime:", sessionWatchTimeRef.current);
       }
     }, 30000);
-
     return () => clearInterval(interval);
   }, [updateWatchTime]);
 
   return (
     <div style={{ position: "relative", paddingTop: "56.25%", overflow: "hidden" }}>
-      {/* Video Player */}
       <video
         ref={videoRef}
         controls
@@ -134,8 +128,6 @@ const CoursePlayer: FC<Props> = ({ videoUrl }) => {
           border: 0,
         }}
       />
-
-      {/* Webcam video (invisible) */}
       <video
         ref={webcamRef}
         autoPlay
@@ -143,8 +135,6 @@ const CoursePlayer: FC<Props> = ({ videoUrl }) => {
         playsInline
         style={{ display: "none" }}
       />
-
-      {/* Overlay */}
       {showOverlay && (
         <div
           style={{
